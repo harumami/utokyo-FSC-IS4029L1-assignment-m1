@@ -1,11 +1,14 @@
 use {
     color_eyre::install as install_eyre,
     eyre::{
-        OptionExt as _,
+        OptionExt,
         Result,
     },
     futures::executor::block_on,
-    std::sync::Arc,
+    std::{
+        slice::from_raw_parts as new_slice,
+        sync::Arc,
+    },
     tracing::error,
     tracing_subscriber::{
         fmt::Subscriber,
@@ -13,9 +16,16 @@ use {
     },
     wgpu::{
         include_wgsl,
+        util::{
+            BufferInitDescriptor,
+            DeviceExt as _,
+        },
+        vertex_attr_array,
         Adapter,
         Backends,
         BlendState,
+        Buffer,
+        BufferUsages,
         Color,
         ColorTargetState,
         ColorWrites,
@@ -40,25 +50,31 @@ use {
         PrimitiveState,
         PrimitiveTopology,
         Queue,
+        RenderBundle,
+        RenderBundleDescriptor,
+        RenderBundleEncoderDescriptor,
         RenderPassColorAttachment,
         RenderPassDescriptor,
+        RenderPipeline,
         RenderPipelineDescriptor,
         RequestAdapterOptions,
+        ShaderModule,
         StoreOp,
         Surface,
         SurfaceConfiguration,
         TextureAspect,
+        TextureFormat,
         TextureUsages,
         TextureViewDescriptor,
         Trace,
+        VertexBufferLayout,
+        VertexFormat,
         VertexState,
+        VertexStepMode,
     },
     winit::{
         application::ApplicationHandler,
-        event::{
-            StartCause,
-            WindowEvent,
-        },
+        event::WindowEvent,
         event_loop::{
             ActiveEventLoop,
             ControlFlow,
@@ -78,15 +94,22 @@ fn main() {
 }
 
 struct App {
-    instance: Option<Instance>,
     window: Option<Arc<Window>>,
+    instance: Option<Instance>,
     surface: Option<Surface<'static>>,
     adapter: Option<Adapter>,
+    format: Option<TextureFormat>,
     device: Option<Device>,
     queue: Option<Queue>,
+    module: Option<ShaderModule>,
+    pipeline: Option<RenderPipeline>,
+    buffer: Option<Buffer>,
+    bundle: Option<RenderBundle>,
 }
 
 impl App {
+    const VERTICES: [[f32; 2]; 3] = [[0.0, 0.5], [-0.5, -0.5], [0.5, -0.5]];
+
     fn run() -> Result<()> {
         install_eyre()?;
         Subscriber::new().try_init()?;
@@ -94,28 +117,33 @@ impl App {
         event_loop.set_control_flow(ControlFlow::Poll);
 
         let mut app = Self {
-            instance: Option::None,
             window: Option::None,
+            instance: Option::None,
             surface: Option::None,
             adapter: Option::None,
+            format: Option::None,
             device: Option::None,
             queue: Option::None,
+            module: Option::None,
+            pipeline: Option::None,
+            buffer: Option::None,
+            bundle: Option::None,
         };
 
         event_loop.run_app(&mut app)?;
         Result::Ok(())
     }
 
-    fn instance(&self) -> Result<&Instance> {
-        self.instance
-            .as_ref()
-            .ok_or_eyre("an instance is not created yet")
-    }
-
     fn window(&self) -> Result<&Window> {
         self.window
             .as_deref()
             .ok_or_eyre("a window is not created yet")
+    }
+
+    fn instance(&self) -> Result<&Instance> {
+        self.instance
+            .as_ref()
+            .ok_or_eyre("an instance is not created yet")
     }
 
     fn surface(&self) -> Result<&Surface<'static>> {
@@ -127,17 +155,47 @@ impl App {
     fn adapter(&self) -> Result<&Adapter> {
         self.adapter
             .as_ref()
-            .ok_or_eyre("an adapter is not created yet")
+            .ok_or_eyre("an adapter is not requested yet")
+    }
+
+    fn format(&self) -> Result<TextureFormat> {
+        self.format.ok_or_eyre("a format is not requested yet")
     }
 
     fn device(&self) -> Result<&Device> {
         self.device
             .as_ref()
-            .ok_or_eyre("a device is not created yet")
+            .ok_or_eyre("a device is not requested yet")
     }
 
     fn queue(&self) -> Result<&Queue> {
-        self.queue.as_ref().ok_or_eyre("a queue is not created yet")
+        self.queue
+            .as_ref()
+            .ok_or_eyre("a queue is not requested yet")
+    }
+
+    fn module(&self) -> Result<&ShaderModule> {
+        self.module
+            .as_ref()
+            .ok_or_eyre("a module is not created yet")
+    }
+
+    fn pipeline(&self) -> Result<&RenderPipeline> {
+        self.pipeline
+            .as_ref()
+            .ok_or_eyre("a pipeline is not created yet")
+    }
+
+    fn buffer(&self) -> Result<&Buffer> {
+        self.buffer
+            .as_ref()
+            .ok_or_eyre("a buffer is not created yet")
+    }
+
+    fn bundle(&self) -> Result<&RenderBundle> {
+        self.bundle
+            .as_ref()
+            .ok_or_eyre("a bundle is not created yet")
     }
 
     fn clone_window(&self) -> Result<Arc<Window>> {
@@ -151,16 +209,36 @@ impl App {
             self.create_window(event_loop)?;
         }
 
+        if self.instance.is_none() {
+            self.create_instance()?;
+        }
+
         if self.surface.is_none() {
             self.create_surface()?;
         }
 
-        if self.adapter.is_none() {
+        if self.adapter.is_none() || self.format.is_none() {
             self.request_adapter()?;
         }
 
         if self.device.is_none() || self.queue.is_none() {
             self.request_device()?;
+        }
+
+        if self.module.is_none() {
+            self.create_module()?;
+        }
+
+        if self.pipeline.is_none() {
+            self.create_pipeline()?;
+        }
+
+        if self.buffer.is_none() {
+            self.create_buffer()?;
+        }
+
+        if self.bundle.is_none() {
+            self.create_bundle()?;
         }
 
         Result::Ok(())
@@ -188,20 +266,19 @@ impl App {
         Result::Ok(())
     }
 
-    fn handle_new_events(&mut self, cause: StartCause) -> Result<()> {
-        if cause == StartCause::Init {
-            self.create_instance()?;
-        }
-
-        Result::Ok(())
-    }
-
     fn try_about_to_wait(&self) -> Result<()> {
         self.window()?.request_redraw();
         Result::Ok(())
     }
 
     fn suspend(&mut self) -> Result<()> {
+        self.surface = Option::None;
+        Result::Ok(())
+    }
+
+    fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+        let window = event_loop.create_window(Window::default_attributes())?;
+        self.window = Option::Some(Arc::new(window));
         self.surface = Option::None;
         Result::Ok(())
     }
@@ -219,13 +296,6 @@ impl App {
         Result::Ok(())
     }
 
-    fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window = event_loop.create_window(Window::default_attributes())?;
-        self.window = Option::Some(Arc::new(window));
-        self.surface = Option::None;
-        Result::Ok(())
-    }
-
     fn create_surface(&mut self) -> Result<()> {
         let instance = self.instance()?;
         let window = self.clone_window()?;
@@ -237,6 +307,7 @@ impl App {
 
     fn request_adapter(&mut self) -> Result<()> {
         let instance = self.instance()?;
+        let surface = self.surface()?;
 
         let options = RequestAdapterOptions {
             power_preference: PowerPreference::HighPerformance,
@@ -245,7 +316,9 @@ impl App {
         };
 
         let adapter = block_on(instance.request_adapter(&options))?;
+        let format = surface.get_capabilities(&adapter).formats.first().copied();
         self.adapter = Option::Some(adapter);
+        self.format = format;
         self.device = Option::None;
         self.queue = Option::None;
         Result::Ok(())
@@ -265,22 +338,127 @@ impl App {
         let (device, queue) = block_on(adapter.request_device(&descripter))?;
         self.device = Option::Some(device);
         self.queue = Option::Some(queue);
+        self.module = Option::None;
+        self.buffer = Option::None;
+        Result::Ok(())
+    }
+
+    fn create_module(&mut self) -> Result<()> {
+        let device = self.device()?;
+        let module_descriptor = include_wgsl!("shader.wgsl");
+        let module = device.create_shader_module(module_descriptor);
+        self.module = Option::Some(module);
+        self.pipeline = Option::None;
+        Result::Ok(())
+    }
+
+    fn create_pipeline(&mut self) -> Result<()> {
+        let format = self.format()?;
+        let device = self.device()?;
+        let module = self.module()?;
+
+        let fragment_targets = [Option::Some(ColorTargetState {
+            format,
+            blend: Option::Some(BlendState::ALPHA_BLENDING),
+            write_mask: ColorWrites::all(),
+        })];
+
+        let pipeline_descriptor = RenderPipelineDescriptor {
+            label: Option::None,
+            layout: Option::None,
+            vertex: VertexState {
+                module,
+                entry_point: Option::None,
+                compilation_options: Default::default(),
+                buffers: &[VertexBufferLayout {
+                    array_stride: VertexFormat::Float32x2.size(),
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: &vertex_attr_array![
+                        0 => Float32x2,
+                    ],
+                }],
+            },
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                strip_index_format: Option::None,
+                front_face: FrontFace::Ccw,
+                cull_mode: Option::Some(Face::Back),
+                unclipped_depth: false,
+                polygon_mode: PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Option::None,
+            multisample: MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            fragment: Option::Some(FragmentState {
+                module,
+                entry_point: Option::None,
+                compilation_options: Default::default(),
+                targets: &fragment_targets,
+            }),
+            multiview: Option::None,
+            cache: Option::None,
+        };
+
+        let pipeline = device.create_render_pipeline(&pipeline_descriptor);
+        self.pipeline = Option::Some(pipeline);
+        self.bundle = Option::None;
+        Result::Ok(())
+    }
+
+    fn create_buffer(&mut self) -> Result<()> {
+        let device = self.device()?;
+        let data = Self::VERTICES;
+        let vertices = unsafe { new_slice(data.as_ptr() as *const u8, size_of_val(&data)) };
+
+        let descriptor = BufferInitDescriptor {
+            label: Option::None,
+            contents: vertices,
+            usage: BufferUsages::VERTEX,
+        };
+
+        let buffer = device.create_buffer_init(&descriptor);
+        self.buffer = Option::Some(buffer);
+        self.bundle = Option::None;
+        Result::Ok(())
+    }
+
+    fn create_bundle(&mut self) -> Result<()> {
+        let format = self.format()?;
+        let device = self.device()?;
+        let pipeline = self.pipeline()?;
+        let buffer = self.buffer()?;
+
+        let descriptor = RenderBundleEncoderDescriptor {
+            label: Option::None,
+            color_formats: &[Option::Some(format)],
+            depth_stencil: Option::None,
+            sample_count: 1,
+            multiview: Option::None,
+        };
+
+        let mut encoder = device.create_render_bundle_encoder(&descriptor);
+        encoder.set_pipeline(pipeline);
+        encoder.set_vertex_buffer(0, buffer.slice(..));
+        encoder.draw(0..Self::VERTICES.len() as u32, 0..1);
+
+        let descriptor = RenderBundleDescriptor {
+            label: Option::None,
+        };
+
+        let bundle = encoder.finish(&descriptor);
+        self.bundle = Option::Some(bundle);
         Result::Ok(())
     }
 
     fn configure_surface(&self) -> Result<()> {
         let window = self.window()?;
-        let adapter = self.adapter()?;
         let surface = self.surface()?;
+        let format = self.format()?;
         let device = self.device()?;
-
-        let format = surface
-            .get_capabilities(adapter)
-            .formats
-            .first()
-            .copied()
-            .ok_or_eyre("the surface does not support any format")?;
-
         let size = window.inner_size();
 
         let configuration = SurfaceConfiguration {
@@ -302,9 +480,10 @@ impl App {
         let surface = self.surface()?;
         let device = self.device()?;
         let queue = self.queue()?;
+        let bundle = self.bundle()?;
         let texture = surface.get_current_texture()?;
 
-        let view_descriptor = TextureViewDescriptor {
+        let descriptor = TextureViewDescriptor {
             label: Option::None,
             format: Option::None,
             dimension: Option::None,
@@ -316,15 +495,15 @@ impl App {
             array_layer_count: Option::None,
         };
 
-        let view = texture.texture.create_view(&view_descriptor);
+        let view = texture.texture.create_view(&descriptor);
 
-        let encoder_descriptor = CommandEncoderDescriptor {
+        let descriptor = CommandEncoderDescriptor {
             label: Option::None,
         };
 
-        let mut encoder = device.create_command_encoder(&encoder_descriptor);
+        let mut encoder = device.create_command_encoder(&descriptor);
 
-        let pass_descriptor = RenderPassDescriptor {
+        let descriptor = RenderPassDescriptor {
             label: Option::None,
             color_attachments: &[Option::Some(RenderPassColorAttachment {
                 view: &view,
@@ -339,53 +518,8 @@ impl App {
             occlusion_query_set: Option::None,
         };
 
-        let mut pass = encoder.begin_render_pass(&pass_descriptor);
-        let module_descriptor = include_wgsl!("shader.wgsl");
-        let module = device.create_shader_module(module_descriptor);
-
-        let fragment_targets = [Option::Some(ColorTargetState {
-            format: texture.texture.format(),
-            blend: Option::Some(BlendState::ALPHA_BLENDING),
-            write_mask: ColorWrites::all(),
-        })];
-
-        let pipeline_descriptor = RenderPipelineDescriptor {
-            label: Option::None,
-            layout: Option::None,
-            vertex: VertexState {
-                module: &module,
-                entry_point: Option::None,
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                strip_index_format: Option::None,
-                front_face: FrontFace::Ccw,
-                cull_mode: Option::Some(Face::Back),
-                unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: Option::None,
-            multisample: MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Option::Some(FragmentState {
-                module: &module,
-                entry_point: Option::None,
-                compilation_options: Default::default(),
-                targets: &fragment_targets,
-            }),
-            multiview: Option::None,
-            cache: Option::None,
-        };
-
-        let pipeline = device.create_render_pipeline(&pipeline_descriptor);
-        pass.set_pipeline(&pipeline);
-        pass.draw(0..3, 0..1);
+        let mut pass = encoder.begin_render_pass(&descriptor);
+        pass.execute_bundles([bundle]);
         drop(pass);
         let commands = encoder.finish();
         queue.submit([commands]);
@@ -417,10 +551,6 @@ impl ApplicationHandler for App {
             event_loop,
             self.handle_window_event(event_loop, window_id, event),
         );
-    }
-
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-        Self::handle_result(event_loop, self.handle_new_events(cause));
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
