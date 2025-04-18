@@ -9,7 +9,10 @@ use {
         slice::from_raw_parts as new_slice,
         sync::Arc,
     },
-    tracing::error,
+    tracing::{
+        error,
+        info,
+    },
     tracing_subscriber::{
         fmt::Subscriber,
         util::SubscriberInitExt as _,
@@ -74,7 +77,12 @@ use {
     },
     winit::{
         application::ApplicationHandler,
-        event::WindowEvent,
+        dpi::PhysicalPosition,
+        event::{
+            ElementState,
+            MouseButton,
+            WindowEvent,
+        },
         event_loop::{
             ActiveEventLoop,
             ControlFlow,
@@ -106,6 +114,7 @@ struct App {
     buffer: Option<Buffer>,
     bundle: Option<RenderBundle>,
     viewport: Option<[f32; 4]>,
+    cursor: Option<PhysicalPosition<f64>>,
 }
 
 impl App {
@@ -130,6 +139,7 @@ impl App {
             buffer: Option::None,
             bundle: Option::None,
             viewport: Option::None,
+            cursor: Option::None,
         };
 
         event_loop.run_app(&mut app)?;
@@ -205,6 +215,10 @@ impl App {
             .ok_or_eyre("a viewport is not initialized yet")
     }
 
+    fn cursor(&self) -> Result<PhysicalPosition<f64>> {
+        self.cursor.ok_or_eyre("a cursor is not initialized yet")
+    }
+
     fn clone_window(&self) -> Result<Arc<Window>> {
         self.window
             .clone()
@@ -266,6 +280,15 @@ impl App {
         match event {
             WindowEvent::Resized(_) => self.configure_surface()?,
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CursorMoved {
+                device_id: _,
+                position,
+            } => self.handle_cursor_move(position)?,
+            WindowEvent::MouseInput {
+                device_id: _,
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+            } => self.handle_mouse_input()?,
             WindowEvent::RedrawRequested => self.draw()?,
             _ => (),
         }
@@ -387,7 +410,7 @@ impl App {
                 }],
             },
             primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
+                topology: PrimitiveTopology::LineList,
                 strip_index_format: Option::None,
                 front_face: FrontFace::Ccw,
                 cull_mode: Option::Some(Face::Back),
@@ -487,6 +510,27 @@ impl App {
         let x = (w - m) / 2.;
         let y = (h - m) / 2.;
         self.viewport = Option::Some([x, y, m, m]);
+        Result::Ok(())
+    }
+
+    fn handle_cursor_move(&mut self, position: PhysicalPosition<f64>) -> Result<()> {
+        self.cursor = Option::Some(position);
+        Result::Ok(())
+    }
+
+    fn handle_mouse_input(&self) -> Result<()> {
+        let viewport = self.viewport()?;
+        let cursor = self.cursor()?;
+        let x = (cursor.x as f32 - viewport[0]) / viewport[2];
+        let y = (cursor.y as f32 - viewport[1]) / viewport[3];
+
+        if !(0. ..=1.).contains(&x) || !(0. ..=1.).contains(&y) {
+            return Result::Ok(());
+        }
+
+        let x = 2. * x - 1.;
+        let y = 1. - 2. * y;
+        info!("{x}, {y}");
         Result::Ok(())
     }
 
