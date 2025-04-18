@@ -1,7 +1,7 @@
 use {
     color_eyre::install as install_eyre,
     eyre::{
-        OptionExt,
+        OptionExt as _,
         Result,
     },
     futures::executor::block_on,
