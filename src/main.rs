@@ -105,6 +105,7 @@ struct App {
     pipeline: Option<RenderPipeline>,
     buffer: Option<Buffer>,
     bundle: Option<RenderBundle>,
+    viewport: Option<[f32; 4]>,
 }
 
 impl App {
@@ -128,6 +129,7 @@ impl App {
             pipeline: Option::None,
             buffer: Option::None,
             bundle: Option::None,
+            viewport: Option::None,
         };
 
         event_loop.run_app(&mut app)?;
@@ -159,7 +161,7 @@ impl App {
     }
 
     fn format(&self) -> Result<TextureFormat> {
-        self.format.ok_or_eyre("a format is not requested yet")
+        self.format.ok_or_eyre("a format is not initialized yet")
     }
 
     fn device(&self) -> Result<&Device> {
@@ -196,6 +198,11 @@ impl App {
         self.bundle
             .as_ref()
             .ok_or_eyre("a bundle is not created yet")
+    }
+
+    fn viewport(&self) -> Result<[f32; 4]> {
+        self.viewport
+            .ok_or_eyre("a viewport is not initialized yet")
     }
 
     fn clone_window(&self) -> Result<Arc<Window>> {
@@ -245,7 +252,7 @@ impl App {
     }
 
     fn handle_window_event(
-        &self,
+        &mut self,
         event_loop: &ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
@@ -302,6 +309,7 @@ impl App {
         let surface = instance.create_surface(window)?;
         self.surface = Option::Some(surface);
         self.adapter = Option::None;
+        self.format = Option::None;
         Result::Ok(())
     }
 
@@ -454,7 +462,7 @@ impl App {
         Result::Ok(())
     }
 
-    fn configure_surface(&self) -> Result<()> {
+    fn configure_surface(&mut self) -> Result<()> {
         let window = self.window()?;
         let surface = self.surface()?;
         let format = self.format()?;
@@ -473,6 +481,12 @@ impl App {
         };
 
         surface.configure(device, &configuration);
+        let w = size.width as f32;
+        let h = size.height as f32;
+        let m = f32::min(w, h);
+        let x = (w - m) / 2.;
+        let y = (h - m) / 2.;
+        self.viewport = Option::Some([x, y, m, m]);
         Result::Ok(())
     }
 
@@ -481,6 +495,7 @@ impl App {
         let device = self.device()?;
         let queue = self.queue()?;
         let bundle = self.bundle()?;
+        let viewport = self.viewport()?;
         let texture = surface.get_current_texture()?;
 
         let descriptor = TextureViewDescriptor {
@@ -519,6 +534,7 @@ impl App {
         };
 
         let mut pass = encoder.begin_render_pass(&descriptor);
+        pass.set_viewport(viewport[0], viewport[1], viewport[2], viewport[3], 0., 1.);
         pass.execute_bundles([bundle]);
         drop(pass);
         let commands = encoder.finish();
