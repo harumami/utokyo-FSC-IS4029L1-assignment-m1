@@ -10,6 +10,7 @@ pub enum Term {
     Tracing,
     Clap,
     Input,
+    Curve,
     Output,
 }
 

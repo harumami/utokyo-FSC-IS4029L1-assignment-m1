@@ -9,54 +9,53 @@ use {
         Read as _,
     },
     toml::from_str as toml_from_str,
+    tracing::info,
 };
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Input {
     pub canvas: Canvas,
     #[serde(default)]
-    pub groups: Vec<Group>,
-    #[serde(default)]
-    pub curves: Vec<Curve>,
+    pub curve: Vec<Curve>,
 }
 
 impl Input {
     pub fn deserialize(kind: Kind) -> Result<Self> {
         let mut stdin = stdin().lock();
 
-        Result::Ok(match kind {
+        let input = match kind {
             Kind::Json => json_from_reader(BufReader::new(stdin))?,
             Kind::Toml => {
                 let mut string = String::new();
                 stdin.read_to_string(&mut string)?;
                 toml_from_str(&string)?
             },
-        })
+        };
+
+        info!("{input:?}");
+        Result::Ok(input)
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Canvas {
     pub width: u32,
     pub height: u32,
-    pub color: Color,
+    pub color: u32,
 }
 
-#[derive(Deserialize)]
-pub struct Group {
-    pub points: Vec<(f32, f32)>,
-    pub color: Color,
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Curve {
-    pub group: usize,
-    pub color: Color,
+    #[serde(flatten)]
+    pub param: Parameter,
+    pub color: u32,
 }
 
-#[derive(Deserialize)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase", tag = "kind")]
+pub enum Parameter {
+    Bezier {
+        points: Vec<[f32; 2]>,
+        samples: usize,
+    },
 }
