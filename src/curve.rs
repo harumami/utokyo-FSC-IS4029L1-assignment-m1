@@ -1,13 +1,21 @@
 use {
     crate::input::{
         BezierMode,
+        CatmullRomMode,
         Shape,
     },
     eyre::{
         ensure,
         Result,
     },
-    nalgebra::Vector3,
+    nalgebra::{
+        Vector2,
+        Vector3,
+    },
+    std::{
+        array::from_fn as new_array,
+        iter::once,
+    },
 };
 
 pub fn to_line_strip(shape: Shape) -> Result<Vec<[f32; 2]>> {
@@ -23,13 +31,64 @@ pub fn to_line_strip(shape: Shape) -> Result<Vec<[f32; 2]>> {
             BezierMode::Normal => bezier::<NormalBezierFn>(points, samples),
             BezierMode::DeCasteljau => bezier::<DeCasteljauBezierFn>(points, samples),
         },
+        Shape::CatmullRom {
+            points,
+            samples,
+            mode,
+        } => {
+            ensure!(
+                points.len() >= 4,
+                "need at least four points to draw a catmull rom spline"
+            );
+
+            Result::Ok(
+                points
+                    .windows(4)
+                    .flat_map(|ps| {
+                        let ps = new_array::<_, 4, _>(|i| Vector2::new(ps[i][0], ps[i][1]));
+
+                        let is = new_array::<_, 3, _>(|i| match mode {
+                            CatmullRomMode::Uniform => 1.0,
+                            CatmullRomMode::Chordal => (ps[i + 1] - ps[i]).norm(),
+                            CatmullRomMode::Centripetal => {
+                                (ps[i + 1] - ps[i]).norm_squared().powf(0.25)
+                            },
+                        });
+
+                        let ts = new_array::<f32, 4, _>(|i| is[0..i].iter().sum());
+
+                        (0..samples).map(move |i| {
+                            let t = ts[1] + is[1] * (i as f32 / samples as f32);
+
+                            let r#as = new_array::<_, 3, _>(|i| {
+                                let r = (t - ts[i]) / is[i];
+                                (1.0 - r) * ps[i] + r * ps[i + 1]
+                            });
+
+                            let bs = new_array::<_, 2, _>(|i| {
+                                let r = (t - ts[i]) / (is[i] + is[i + 1]);
+                                (1.0 - r) * r#as[i] + r * r#as[i + 1]
+                            });
+
+                            let cs = new_array::<_, 1, _>(|i| {
+                                let r = (t - ts[i + 1]) / is[i + 1];
+                                (1.0 - r) * bs[i] + r * bs[i + 1]
+                            });
+
+                            cs[0].into()
+                        })
+                    })
+                    .chain(once(points[points.len() - 2]))
+                    .collect(),
+            )
+        },
     }
 }
 
 fn bezier<F: BezierFn>(points: Vec<[f32; 3]>, samples: usize) -> Result<Vec<[f32; 2]>> {
     ensure!(
         !points.is_empty(),
-        "need at least one control point to draw a bezier curve"
+        "need at least one point to draw a bezier curve"
     );
 
     let mut f = F::new(points.len() - 1);

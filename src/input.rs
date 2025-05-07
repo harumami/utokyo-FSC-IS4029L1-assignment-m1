@@ -51,7 +51,7 @@ pub struct Curve {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase", tag = "kind")]
+#[serde(rename_all = "snake_case", tag = "kind")]
 pub enum Shape {
     Lines {
         points: Vec<[f32; 2]>,
@@ -62,6 +62,12 @@ pub enum Shape {
         #[serde(flatten)]
         mode: BezierMode,
     },
+    CatmullRom {
+        points: Vec<[f32; 2]>,
+        samples: usize,
+        #[serde(flatten)]
+        mode: CatmullRomMode,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,4 +75,12 @@ pub enum Shape {
 pub enum BezierMode {
     Normal,
     DeCasteljau,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "mode")]
+pub enum CatmullRomMode {
+    Uniform,
+    Chordal,
+    Centripetal,
 }
