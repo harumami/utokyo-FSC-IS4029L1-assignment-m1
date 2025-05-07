@@ -1,0 +1,27 @@
+[canvas]
+size = [1024, 1024]
+color = 0x000000
+
+[[curve]]
+kind = "lines"
+points = [[0.0, 0.0], [512.0, 500.0], [1024.0, 0.0]]
+color = 0xFF0000
+
+[[curve]]
+kind = "bezier"
+points = [[0.0, 0.0, 1.0], [512.0, 500.0, 1.0], [1024.0, 0.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0x00FF00
+
+[[curve]]
+kind = "lines"
+points = [[0.0, 24.0], [512.0, 524.0], [1024.0, 24.0]]
+color = 0x0000FF
+
+[[curve]]
+kind = "bezier"
+points = [[0.0, 24.0, 1.0], [512.0, 524.0, 1.0], [1024.0, 24.0, 1.0]]
+samples = 1024
+mode = "de_casteljau"
+color = 0xFFFF00

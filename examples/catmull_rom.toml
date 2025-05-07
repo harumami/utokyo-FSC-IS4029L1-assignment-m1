@@ -1,0 +1,29 @@
+[canvas]
+size = [1024, 1024]
+color = 0x000000
+
+[[curve]]
+kind = "lines"
+points = [[0.0, 0.0], [200.0, 200.0], [500.0, 800.0], [524.0, 800.0], [824.0, 200.0], [1024.0, 0.0]]
+color = 0xFF0000
+
+[[curve]]
+kind = "catmull_rom"
+points = [[0.0, 0.0], [200.0, 200.0], [500.0, 800.0], [524.0, 800.0], [824.0, 200.0], [1024.0, 0.0]]
+samples = 128
+mode = "uniform"
+color = 0x00FF00
+
+[[curve]]
+kind = "catmull_rom"
+points = [[0.0, 0.0], [200.0, 200.0], [500.0, 800.0], [524.0, 800.0], [824.0, 200.0], [1024.0, 0.0]]
+samples = 128
+mode = "chordal"
+color = 0x0000FF
+
+[[curve]]
+kind = "catmull_rom"
+points = [[0.0, 0.0], [200.0, 200.0], [500.0, 800.0], [524.0, 800.0], [824.0, 200.0], [1024.0, 0.0]]
+samples = 128
+mode = "centripetal"
+color = 0xFFFF00
