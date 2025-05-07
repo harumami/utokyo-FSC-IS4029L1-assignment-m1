@@ -122,3 +122,23 @@ Catmull-Romスプラインの場合の値は下の通り。
 ### 標準エラー出力
 
 ログ。
+
+## 動作例
+
+これらは全て次のコマンドで生成されている。
+
+```sh
+cat input.toml | cargo run --release -- toml webp > output.webp
+```
+
+### [ベジェ曲線の描画モードの比較](examples/bezier_mode.toml)
+
+![bezier_mode.webp](examples/bezier_mode.webp)
+
+### [ベジェ曲線の重みによる違い](examples/bezier_weight.toml)
+
+![bezier_weight.webp](examples/bezier_weight.webp)
+
+### [Catmull-Romスプラインのノット列モードの比較](examples/catmull_rom.toml)
+
+![catmull_rom.webp](examples/catmull_rom.webp)
