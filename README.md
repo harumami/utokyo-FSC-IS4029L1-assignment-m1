@@ -4,8 +4,8 @@
 
 | プラットフォーム | 動作確認 | バイナリ配布 |
 | - | - | - |
-| Windows | :checkmark: | `target\release\utokyo-FSC-IS4029L1-assignment-m1.exe` |
-| macOS | :checkmark: | - |
+| Windows | 確認済み | `target\release\utokyo-FSC-IS4029L1-assignment-m1.exe` |
+| macOS | 未確認 | - |
 
 ## ディレクトリ構造
 
