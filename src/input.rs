@@ -53,6 +53,9 @@ pub struct Curve {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase", tag = "kind")]
 pub enum Shape {
+    Lines {
+        points: Vec<[f32; 2]>,
+    },
     Bezier {
         points: Vec<[f32; 3]>,
         samples: usize,

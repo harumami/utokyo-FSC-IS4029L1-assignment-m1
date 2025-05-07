@@ -12,6 +12,9 @@ use {
 
 pub fn to_line_strip(shape: Shape) -> Result<Vec<[f32; 2]>> {
     match shape {
+        Shape::Lines {
+            points,
+        } => Result::Ok(points),
         Shape::Bezier {
             points,
             samples,
