@@ -45,7 +45,7 @@ cargo run --release -- json png
 
 コマンドライン引数で指定したフォーマットにする。
 [`input.rs`](src/input.rs)に該当部分のコードがある。
-また、[`example`](example)内にTOMLでの例がある。
+また、[`examples`](examples)内にTOMLでの例がある。
 
 #### `canvas`
 
