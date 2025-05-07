@@ -12,12 +12,12 @@ use {
 };
 
 #[derive(Debug, Parser)]
-pub struct Args {
+pub struct Arguments {
     pub input: Input,
     pub output: Output,
 }
 
-impl Args {
+impl Arguments {
     pub fn parse() -> Result<Result<Self, Error>> {
         match Parser::try_parse() {
             Result::Ok(args) => {

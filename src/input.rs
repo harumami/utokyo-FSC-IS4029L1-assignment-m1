@@ -39,23 +39,31 @@ impl Input {
 
 #[derive(Debug, Deserialize)]
 pub struct Canvas {
-    pub width: u32,
-    pub height: u32,
+    pub size: [u32; 2],
     pub color: u32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Curve {
     #[serde(flatten)]
-    pub param: Parameter,
+    pub shape: Shape,
     pub color: u32,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase", tag = "kind")]
-pub enum Parameter {
+pub enum Shape {
     Bezier {
-        points: Vec<[f32; 2]>,
+        points: Vec<[f32; 3]>,
         samples: usize,
+        #[serde(flatten)]
+        mode: BezierMode,
     },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "mode")]
+pub enum BezierMode {
+    Normal,
+    DeCasteljau,
 }

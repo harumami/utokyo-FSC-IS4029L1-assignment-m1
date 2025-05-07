@@ -3,7 +3,7 @@ use std::process::{
     Termination,
 };
 
-pub enum Term {
+pub enum StatusCode {
     Ok,
     Io,
     Eyre,
@@ -14,7 +14,7 @@ pub enum Term {
     Output,
 }
 
-impl Termination for Term {
+impl Termination for StatusCode {
     fn report(self) -> ExitCode {
         (self as u8).into()
     }

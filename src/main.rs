@@ -2,18 +2,18 @@ mod args;
 mod curve;
 mod input;
 mod output;
-mod term;
+mod status;
 
 use {
     crate::{
-        args::Args,
+        args::Arguments,
         curve::to_line_strip,
         input::Input,
         output::{
-            generate,
+            generate_image,
             LineStrip,
         },
-        term::Term,
+        status::StatusCode,
     },
     color_eyre::config::HookBuilder,
     eyre::{
@@ -34,7 +34,7 @@ use {
     },
 };
 
-fn main() -> Term {
+fn main() -> StatusCode {
     let start = Instant::now();
 
     if let Result::Err(error) = HookBuilder::new()
@@ -42,7 +42,7 @@ fn main() -> Term {
         .install()
     {
         eprintln!("{error:?}");
-        return Term::Eyre;
+        return StatusCode::Eyre;
     }
 
     if let Result::Err(error) = Subscriber::builder()
@@ -52,21 +52,21 @@ fn main() -> Term {
         .wrap_err("cannot init a subscriber")
     {
         eprintln!("{error:?}");
-        return Term::Tracing;
+        return StatusCode::Tracing;
     }
 
-    let args = match Args::parse() {
+    let args = match Arguments::parse() {
         Result::Ok(Result::Ok(args)) => args,
         Result::Ok(Result::Err(error)) => match error.print() {
-            Result::Ok(()) => return Term::Ok,
+            Result::Ok(()) => return StatusCode::Ok,
             Result::Err(error) => {
                 error!("{error:?}");
-                return Term::Io;
+                return StatusCode::Io;
             },
         },
         Result::Err(error) => {
             error!("{error:?}");
-            return Term::Clap;
+            return StatusCode::Clap;
         },
     };
 
@@ -74,7 +74,7 @@ fn main() -> Term {
         Result::Ok(input) => input,
         Result::Err(error) => {
             error!("{error:?}");
-            return Term::Input;
+            return StatusCode::Input;
         },
     };
 
@@ -83,7 +83,7 @@ fn main() -> Term {
         .into_iter()
         .map(|curve| {
             Result::Ok(LineStrip {
-                positions: to_line_strip(curve.param)?,
+                positions: to_line_strip(curve.shape)?,
                 color: curve.color,
             })
         })
@@ -92,15 +92,15 @@ fn main() -> Term {
         Result::Ok(line_strips) => line_strips,
         Result::Err(error) => {
             error!("{error:?}");
-            return Term::Curve;
+            return StatusCode::Curve;
         },
     };
 
-    if let Result::Err(error) = generate(args.output, input.canvas, line_strips) {
+    if let Result::Err(error) = generate_image(args.output, input.canvas, line_strips) {
         error!("{error:?}");
-        return Term::Output;
+        return StatusCode::Output;
     }
 
     info!("{:?}", Instant::now().duration_since(start));
-    Term::Ok
+    StatusCode::Ok
 }

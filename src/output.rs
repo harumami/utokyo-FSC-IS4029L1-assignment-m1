@@ -17,6 +17,7 @@ use {
         ImageFormat,
     },
     std::{
+        array::from_fn as new_array,
         io::{
             stdout,
             Cursor,
@@ -86,7 +87,7 @@ use {
     },
 };
 
-pub fn generate(kind: Kind, canvas: Canvas, line_strips: Vec<LineStrip>) -> Result<()> {
+pub fn generate_image(kind: Kind, canvas: Canvas, line_strips: Vec<LineStrip>) -> Result<()> {
     let instance = Instance::new(&InstanceDescriptor {
         backends: Backends::METAL | Backends::DX12,
         flags: match cfg!(debug_assertions) {
@@ -225,10 +226,7 @@ pub fn generate(kind: Kind, canvas: Canvas, line_strips: Vec<LineStrip>) -> Resu
         write_attribute(
             vertex,
             &vertex_attributes[0],
-            &[
-                2.0 * position[0] / canvas.width as f32 - 1.0,
-                2.0 * position[1] / canvas.height as f32 - 1.0,
-            ],
+            &new_array::<_, 2, _>(|i| 2.0 * position[i] / canvas.size[i] as f32 - 1.0),
         );
 
         write_attribute(vertex, &vertex_attributes[1], &to_rgb(color)?);
@@ -238,8 +236,8 @@ pub fn generate(kind: Kind, canvas: Canvas, line_strips: Vec<LineStrip>) -> Resu
     vertex_buffer.unmap();
 
     let extent = Extent3d {
-        width: canvas.width,
-        height: canvas.height,
+        width: canvas.size[0],
+        height: canvas.size[1],
         depth_or_array_layers: 1,
     };
 
