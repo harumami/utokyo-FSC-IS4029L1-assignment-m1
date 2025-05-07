@@ -88,6 +88,12 @@ use {
 };
 
 pub fn generate_image(kind: Kind, canvas: Canvas, line_strips: Vec<LineStrip>) -> Result<()> {
+    ensure!(
+        canvas.size.iter().all(|s| *s != 0),
+        "{:?} is invalid as a size of an image",
+        canvas.size
+    );
+
     let instance = Instance::new(&InstanceDescriptor {
         backends: Backends::METAL | Backends::DX12,
         flags: match cfg!(debug_assertions) {
