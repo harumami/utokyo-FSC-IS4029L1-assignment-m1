@@ -1,0 +1,43 @@
+[canvas]
+size = [1024, 1024]
+color = 0x000000
+
+[[curve]]
+kind = "lines"
+points = [[128.0, 512.0], [512.0, 896.0], [896.0, 512.0]]
+color = 0xFF0000
+
+[[curve]]
+kind = "bezier"
+points = [[128.0, 512.0, 1.0], [512.0, 896.0, 1.0], [896.0, 512.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0x00FF00
+
+[[curve]]
+kind = "bezier"
+points = [[128.0, 512.0, 1.0], [512.0, 896.0, 0.5], [896.0, 512.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0x0000FF
+
+[[curve]]
+kind = "bezier"
+points = [[128.0, 512.0, 1.0], [512.0, 896.0, 0.0], [896.0, 512.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0xFFFF00
+
+[[curve]]
+kind = "bezier"
+points = [[128.0, 512.0, 1.0], [512.0, 896.0, -0.5], [896.0, 512.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0x00FFFF
+
+[[curve]]
+kind = "bezier"
+points = [[128.0, 512.0, 1.0], [512.0, 896.0, -1.0], [896.0, 512.0, 1.0]]
+samples = 1024
+mode = "normal"
+color = 0xFF00FF
